@@ -25,8 +25,8 @@ load_dotenv()
 API_KEY = os.getenv("API_KEY")
 
 
-MAX_THREAD = os.cpu_count() + 4
-THREAD_MSG = "[Thread #%03d] - %s: %s"
+MAX_THREAD = os.cpu_count()
+THREAD_MSG = "[Luồng #%02d] - %s: %s"
 
 ROOT_DIR = os.path.dirname(__file__)
 DATA_DIR = os.path.join(ROOT_DIR, "data")
@@ -92,9 +92,9 @@ class ChromeDriver:
         options = Options()
         ua = UserAgent()
         random_user_agent = ua.random
-        # options.add_argument("--headless")
+        options.add_argument("--headless=new")
         # options.add_argument(f"user-agent={random_user_agent}")
-        options.add_argument(f"--proxy-server={proxy}")
+        # options.add_argument(f"--proxy-server={proxy}")
         options.add_argument("--log-level=3")
         options.add_argument("--disable-gpu")
         options.add_argument("--no-sandbox")
@@ -118,6 +118,19 @@ class ChromeDriver:
         options.add_argument("--ignore-certificate-errors")
         driver = Chrome(options=options)
         return driver
+
+
+def get_chrome_driver(*args, **kwargs) -> Chrome:
+    options = Options()
+    # options.add_argument("--headless")
+    options.add_argument("--disable-gpu")
+    options.add_argument("--no-sandbox")
+    options.add_argument("--log-level=3")
+    options.add_argument(f"--proxy-server={kwargs.get("proxy")}")
+    options.add_argument("--enable-unsafe-webgpu")
+    options.add_argument("--enable-unsafe-swiftshader")
+    options.add_argument("--ignore-certificate-errors")
+    return Chrome(options=options)
 
 
 class ChromePosition:
@@ -322,8 +335,9 @@ def scrape_one(uid: str, thread_id: int, thread_count: int):
     else:
         print(THREAD_MSG % (thread_id, uid, "Đã lấy được proxy mới"))
     print(THREAD_MSG % (thread_id, uid, f"Proxy: {proxy}"))
-    chrome_cli = ChromeDriver()
-    driver = chrome_cli.config(proxy=proxy)
+    # chrome_cli = ChromeDriver()
+    # driver = chrome_cli.config(proxy=proxy)
+    driver = get_chrome_driver(proxy=proxy)
     ChromePosition.config(driver, thread_id, thread_count)
     facebook = FacebookManipulator(driver)
 
@@ -373,11 +387,11 @@ def scrape_all(uids: list[str], thread_count: int) -> None:
             for i, uid in enumerate(uids)
         }
 
-        for future in as_completed(futures):
-            try:
-                future.result()
-            except Exception as e:
-                print(f"Error occurred: {e}")
+        # for future in as_completed(futures):
+        #     try:
+        #         future.result()
+        #     except Exception as e:
+        #         print(f"Error occurred: {e}")
 
 
 def main():
