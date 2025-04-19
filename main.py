@@ -18,8 +18,6 @@ from selenium.webdriver.support.ui import WebDriverWait
 from typing import Union, Optional, Callable
 from fake_useragent import UserAgent
 
-os.system("cls")
-
 load_dotenv()
 
 API_KEY = os.getenv("API_KEY")
@@ -122,7 +120,7 @@ class ChromeDriver:
 
 def get_chrome_driver(*args, **kwargs) -> Chrome:
     options = Options()
-    # options.add_argument("--headless")
+    options.add_argument("--headless")
     options.add_argument("--disable-gpu")
     options.add_argument("--no-sandbox")
     options.add_argument("--log-level=3")
@@ -379,19 +377,11 @@ def scrape_one(uid: str, thread_id: int, thread_count: int):
 
 
 def scrape_all(uids: list[str], thread_count: int) -> None:
+    args_list = [
+        (uid, i % thread_count, thread_count) for i, uid in enumerate(uids)
+    ]
     with ThreadPoolExecutor(max_workers=thread_count) as executor:
-        futures = {
-            executor.submit(
-                scrape_one, uid, i % thread_count, thread_count
-            ): uid
-            for i, uid in enumerate(uids)
-        }
-
-        # for future in as_completed(futures):
-        #     try:
-        #         future.result()
-        #     except Exception as e:
-        #         print(f"Error occurred: {e}")
+        [executor.submit(scrape_one, *args) for args in args_list]
 
 
 def main():
