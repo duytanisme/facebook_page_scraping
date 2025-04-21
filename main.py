@@ -86,13 +86,10 @@ proxy_cli = ProxyRequest(API_KEY)
 
 class ChromeDriver:
     def config(self, **kwargs) -> Chrome:
-        proxy = kwargs.get("proxy")
         options = Options()
-        ua = UserAgent()
-        random_user_agent = ua.random
         options.add_argument("--headless=new")
-        # options.add_argument(f"user-agent={random_user_agent}")
-        # options.add_argument(f"--proxy-server={proxy}")
+        if kwargs.get("proxy") is not None:
+            options.add_argument(f"--proxy-server={kwargs.get("proxy")}")
         options.add_argument("--log-level=3")
         options.add_argument("--disable-gpu")
         options.add_argument("--no-sandbox")
@@ -124,7 +121,8 @@ def get_chrome_driver(*args, **kwargs) -> Chrome:
     options.add_argument("--disable-gpu")
     options.add_argument("--no-sandbox")
     options.add_argument("--log-level=3")
-    options.add_argument(f"--proxy-server={kwargs.get("proxy")}")
+    if kwargs.get("proxy") is not None:
+        options.add_argument(f"--proxy-server={kwargs.get("proxy")}")
     options.add_argument("--enable-unsafe-webgpu")
     options.add_argument("--enable-unsafe-swiftshader")
     options.add_argument("--ignore-certificate-errors")
@@ -326,54 +324,53 @@ def scrape_one(uid: str, thread_id: int, thread_count: int):
     # ================================
     # Initialize the driver
     # ================================
-    proxy = proxy_cli.get_new_proxy()
-    if not proxy:
-        print(THREAD_MSG % (thread_id, uid, "Không lấy được proxy mới"))
-        proxy = proxy_cli.get_current_proxy()
-    else:
-        print(THREAD_MSG % (thread_id, uid, "Đã lấy được proxy mới"))
-    print(THREAD_MSG % (thread_id, uid, f"Proxy: {proxy}"))
+    try:
+        proxy = proxy_cli.get_new_proxy()
+        if not proxy:
+            print(THREAD_MSG % (thread_id, uid, "Không lấy được proxy mới"))
+            proxy = proxy_cli.get_current_proxy()
+        else:
+            print(THREAD_MSG % (thread_id, uid, "Đã lấy được proxy mới"))
+        print(THREAD_MSG % (thread_id, uid, f"Proxy: {proxy}"))
+    except:
+        print(THREAD_MSG % (thread_id, uid, "Bị lỗi khi lấy proxy"))
+        proxy = None
     # chrome_cli = ChromeDriver()
     # driver = chrome_cli.config(proxy=proxy)
     driver = get_chrome_driver(proxy=proxy)
     ChromePosition.config(driver, thread_id, thread_count)
     facebook = FacebookManipulator(driver)
+    try:
+        # ================================
+        # Get data in main page
+        # ================================
+        facebook.get(FACEBOOK_PAGE_URL % uid)
+        if ERROR_MSG in facebook.driver.page_source:
+            print(THREAD_MSG % (thread_id, uid, "Không truy cập được page"))
+            return
+        facebook.close_modal()
+        data["page_name"] = facebook.get_page_name()
+        data["email"] = facebook.get_email()
 
-    # ================================
-    # Get data in main page
-    # ================================
-    facebook.get(FACEBOOK_PAGE_URL % uid)
-    if ERROR_MSG in facebook.driver.page_source:
-        print(THREAD_MSG % (thread_id, uid, "Không truy cập được page"))
+        # ================================
+        # Get data in extended page
+        # ================================
+        facebook.get(FACEBOOK_ADS_URL % uid)
+        if ERROR_MSG in facebook.driver.page_source:
+            print(THREAD_MSG % (thread_id, uid, "Không truy cập được page 2"))
+            return
+        facebook.close_modal()
+        data["ads_status"] = facebook.get_running_ads_status()
+        facebook.click_see_all()
+        data["country"] = facebook.get_managing_country()
+        print(THREAD_MSG % (thread_id, uid, "Lấy thông tin thành công"))
+
+        # ================================
+        # Quit the driver
+        # ================================
+    finally:
         save_to_txt(OUTPUT_PATH, data)
         facebook.quit()
-        return
-    facebook.close_modal()
-    data["page_name"] = facebook.get_page_name()
-    data["email"] = facebook.get_email()
-
-    # ================================
-    # Get data in extended page
-    # ================================
-    facebook.get(FACEBOOK_ADS_URL % uid)
-    if ERROR_MSG in facebook.driver.page_source:
-        print(THREAD_MSG % (thread_id, uid, "Không truy cập được page mở rộng"))
-        save_to_txt(OUTPUT_PATH, data)
-        facebook.quit()
-        return
-    facebook.close_modal()
-    data["ads_status"] = facebook.get_running_ads_status()
-    facebook.click_see_all()
-    data["country"] = facebook.get_managing_country()
-    print(THREAD_MSG % (thread_id, uid, "Lấy thông tin thành công"))
-
-    # Save data to output.txt
-    save_to_txt(OUTPUT_PATH, data)
-
-    # ================================
-    # Quit the driver
-    # ================================
-    facebook.quit()
 
 
 def scrape_all(uids: list[str], thread_count: int) -> None:
